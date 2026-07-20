@@ -21,21 +21,29 @@ def handle_start(message):
     bot.reply_to(message, "✅ Бот работает! Отправьте любое сообщение, и оно будет переслано администратору.")
     logger.info(f"Команда /start от {message.chat.id}")
 
-# УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК: пересылает ВСЁ (текст, фото, голос, стикеры, документы)
-@bot.message_handler(func=lambda message: message.chat.id != ADMIN_ID, content_types=['text', 'photo', 'voice', 'sticker', 'document', 'video', 'audio'])
-def handle_user_message(message):
+# ОБРАБОТЧИК ДЛЯ ЛЮБЫХ ТЕКСТОВЫХ СООБЩЕНИЙ (НЕ КОМАНД)
+@bot.message_handler(func=lambda message: message.chat.id != ADMIN_ID and not message.text.startswith('/'))
+def handle_user_text(message):
     try:
         user_id = message.chat.id
         user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
         
-        # Формируем префикс для администратора
+        forward_text = f"📩 Новое сообщение от {user_name} (ID: {user_id}):\n\n{message.text}"
+        bot.send_message(ADMIN_ID, forward_text)
+        bot.reply_to(message, "✅ Ваше сообщение отправлено. Ожидайте ответа.")
+        logger.info(f"Сообщение от {user_id} переслано администратору")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке сообщения: {e}")
+
+# Обработчик для фото, голоса, стикеров и т.д.
+@bot.message_handler(func=lambda message: message.chat.id != ADMIN_ID, content_types=['photo', 'voice', 'sticker', 'document', 'video', 'audio'])
+def handle_user_media(message):
+    try:
+        user_id = message.chat.id
+        user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
         prefix = f"📩 Новое сообщение от {user_name} (ID: {user_id})"
         
-        # Если сообщение — текст
-        if message.text:
-            bot.send_message(ADMIN_ID, f"{prefix}:\n\n{message.text}")
-        # Если сообщение — фото, голос, стикер и т.д.
-        elif message.photo:
+        if message.photo:
             caption = message.caption or ""
             bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"{prefix}:\n\n{caption}")
         elif message.voice:
@@ -54,13 +62,10 @@ def handle_user_message(message):
         else:
             bot.send_message(ADMIN_ID, f"{prefix} (тип: {message.content_type})")
         
-        # Подтверждение пользователю
         bot.reply_to(message, "✅ Ваше сообщение отправлено. Ожидайте ответа.")
-        logger.info(f"Сообщение от {user_id} переслано администратору")
-        
+        logger.info(f"Медиа от {user_id} переслано администратору")
     except Exception as e:
-        logger.error(f"Ошибка при обработке сообщения: {e}")
-        bot.send_message(ADMIN_ID, f"❌ Ошибка при обработке сообщения от {user_id}: {e}")
+        logger.error(f"Ошибка при обработке медиа: {e}")
 
 # Обработчик ответов администратора
 @bot.message_handler(func=lambda message: message.chat.id == ADMIN_ID and message.reply_to_message is not None)
