@@ -15,19 +15,27 @@ if not BOT_TOKEN or not ADMIN_ID:
 ADMIN_ID = int(ADMIN_ID)
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Обработчик команды /start
+# Обработчик команды /start (отвечает всем, включая администратора)
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     bot.reply_to(message, "✅ Бот работает! Отправьте любое сообщение, и оно будет переслано администратору.")
     logger.info(f"Команда /start от {message.chat.id}")
 
-# ОБРАБОТЧИК ДЛЯ ЛЮБЫХ ТЕКСТОВЫХ СООБЩЕНИЙ (НЕ КОМАНД)
-@bot.message_handler(func=lambda message: message.chat.id != ADMIN_ID and not message.text.startswith('/'))
+# ОБРАБОТЧИК ДЛЯ ЛЮБЫХ ТЕКСТОВЫХ СООБЩЕНИЙ (включая сообщения от администратора)
+@bot.message_handler(func=lambda message: not message.text.startswith('/'))
 def handle_user_text(message):
     try:
         user_id = message.chat.id
         user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
         
+        # Если сообщение от администратора — просто пересылаем ему же (для теста)
+        if user_id == ADMIN_ID:
+            bot.send_message(ADMIN_ID, f"📩 Вы отправили себе (ID: {user_id}):\n\n{message.text}")
+            bot.reply_to(message, "✅ Ваше сообщение отправлено (самому себе).")
+            logger.info(f"Сообщение от администратора {user_id} переслано обратно")
+            return
+        
+        # Если сообщение от обычного пользователя — пересылаем администратору
         forward_text = f"📩 Новое сообщение от {user_name} (ID: {user_id}):\n\n{message.text}"
         bot.send_message(ADMIN_ID, forward_text)
         bot.reply_to(message, "✅ Ваше сообщение отправлено. Ожидайте ответа.")
@@ -36,12 +44,19 @@ def handle_user_text(message):
         logger.error(f"Ошибка при обработке сообщения: {e}")
 
 # Обработчик для фото, голоса, стикеров и т.д.
-@bot.message_handler(func=lambda message: message.chat.id != ADMIN_ID, content_types=['photo', 'voice', 'sticker', 'document', 'video', 'audio'])
+@bot.message_handler(content_types=['photo', 'voice', 'sticker', 'document', 'video', 'audio'])
 def handle_user_media(message):
     try:
         user_id = message.chat.id
         user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
         prefix = f"📩 Новое сообщение от {user_name} (ID: {user_id})"
+        
+        # Если сообщение от администратора — просто пересылаем ему же (для теста)
+        if user_id == ADMIN_ID:
+            bot.send_message(ADMIN_ID, f"📩 Вы отправили себе (ID: {user_id}): медиафайл")
+            bot.reply_to(message, "✅ Ваше медиа отправлено (самому себе).")
+            logger.info(f"Медиа от администратора {user_id} переслано обратно")
+            return
         
         if message.photo:
             caption = message.caption or ""
