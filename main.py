@@ -2,6 +2,8 @@ import telebot
 import os
 import time
 import logging
+import json
+import re
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,48 +17,88 @@ if not BOT_TOKEN or not ADMIN_ID:
 ADMIN_ID = int(ADMIN_ID)
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Обработчик команды /start (отвечает всем, включая администратора)
+# ========== AI-ПОМОЩНИК ==========
+def get_ai_response(question):
+    """Отвечает на вопросы по квесту"""
+    q = question.lower().strip()
+    
+    # Приветствия
+    if re.search(r'(привет|здравствуй|hello|hi)', q):
+        return "👋 Привет! Я AI-помощник квеста «Тайны вашего города». Спрашивайте о маршрутах, баллах, загадках — я помогу!"
+    
+    # Баллы и правила
+    if re.search(r'(балл|очк|правил|score|как набрать|сколько)', q):
+        return "⭐ **Правила начисления баллов:**\n• 1 попытка — 3 балла\n• 2 попытка — 2 балла\n• 3 попытка — 1 балл\n• После 3 ошибок — подсказка и 0 баллов\n\n🎯 Максимум за квест: 30–45 баллов."
+    
+    # Подсказки
+    if re.search(r'(подсказк|hint|помощь|как найти|где искать)', q):
+        return "💡 **Подсказки:**\n• Каждая точка — реальный объект (памятник, здание, табличка).\n• Ищите информацию на фасадах, стендах и информационных щитах.\n• Если застряли — попробуйте найти точку на карте."
+    
+    # Маршрут
+    if re.search(r'(маршрут|протяжённ|длина|расстояни|километр|км|время)', q):
+        return "📍 **Маршруты:**\n• Тобольск — 6.3 км, ~1.9 часа\n• Роттердам — 5.5 км, ~2 часа\n• Венеция — 6.5 км, ~3 часа\n\n🔥 Примерно 300–370 ккал (как один бургер!)"
+    
+    # Города
+    if re.search(r'(город|city|какие города|доступн|выбрать)', q):
+        return "🏙️ **Доступные города:**\n• Тобольск (Россия) — 12 точек\n• Роттердам (Нидерланды) — 10 точек\n• Венеция (Италия) — 11 точек\n\nНовые города добавляются регулярно!"
+    
+    # Загадки
+    if re.search(r'(загадк|riddle|сложн|трудн|ответ)', q):
+        return "🔍 **Про загадки:**\n• Внимательно читайте текст — ключ к ответу всегда в нём.\n• Используйте логику и наблюдательность.\n• Если совсем трудно — AI-помощник даст подсказку."
+    
+    # Обратная связь
+    if re.search(r'(помощь|help|support|контакт|админ|разработчик|телеграм|email)', q):
+        return "📩 **Контакты:**\n• Telegram: @Quest_supportbot\n• Email: quest@tobolsk-quest.com\n• Или нажмите кнопку «Обратная связь» в приложении."
+    
+    # Непонятный вопрос
+    return "🤔 Я не совсем понял ваш вопрос. Попробуйте спросить о:\n• баллах и правилах\n• маршрутах и городах\n• подсказках и загадках\n• контактах для связи"
+
+# ========== ОБРАБОТЧИКИ ==========
+
+# Команда /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    bot.reply_to(message, "✅ Бот работает! Отправьте любое сообщение, и оно будет переслано администратору.")
+    bot.reply_to(message, "👋 Привет! Я AI-помощник квеста «Тайны вашего города».\n\nЗадавайте любые вопросы по квесту — я помогу! ✨")
     logger.info(f"Команда /start от {message.chat.id}")
 
-# ОБРАБОТЧИК ДЛЯ ЛЮБЫХ ТЕКСТОВЫХ СООБЩЕНИЙ (включая сообщения от администратора)
-@bot.message_handler(func=lambda message: not message.text.startswith('/'))
-def handle_user_text(message):
+# AI-обработчик для сообщений, которые выглядят как вопросы по квесту
+@bot.message_handler(func=lambda message: message.chat.id != ADMIN_ID and len(message.text) > 3)
+def handle_ai_question(message):
     try:
         user_id = message.chat.id
-        user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
+        user_text = message.text
         
-        # Если сообщение от администратора — просто пересылаем ему же (для теста)
-        if user_id == ADMIN_ID:
-            bot.send_message(ADMIN_ID, f"📩 Вы отправили себе (ID: {user_id}):\n\n{message.text}")
-            bot.reply_to(message, "✅ Ваше сообщение отправлено (самому себе).")
-            logger.info(f"Сообщение от администратора {user_id} переслано обратно")
-            return
+        # Проверяем, похоже ли сообщение на вопрос по квесту
+        is_quest_question = any(keyword in user_text.lower() for keyword in [
+            'балл', 'очк', 'правил', 'маршрут', 'город', 'загадк', 'подсказк',
+            'как', 'где', 'что', 'кто', 'когда', 'почему', 'сколько',
+            'бонус', 'квест', 'точк', 'пройти', 'пройден', 'финиш'
+        ])
         
-        # Если сообщение от обычного пользователя — пересылаем администратору
-        forward_text = f"📩 Новое сообщение от {user_name} (ID: {user_id}):\n\n{message.text}"
-        bot.send_message(ADMIN_ID, forward_text)
-        bot.reply_to(message, "✅ Ваше сообщение отправлено. Ожидайте ответа.")
-        logger.info(f"Сообщение от {user_id} переслано администратору")
+        if is_quest_question:
+            # Отвечаем как AI-помощник
+            response = get_ai_response(user_text)
+            bot.send_message(user_id, response)
+            logger.info(f"AI-ответ для {user_id}: {response[:50]}...")
+        else:
+            # Если это не вопрос по квесту — пересылаем администратору
+            user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
+            forward_text = f"📩 Новое сообщение от {user_name} (ID: {user_id}):\n\n{user_text}"
+            bot.send_message(ADMIN_ID, forward_text)
+            bot.reply_to(message, "✅ Ваше сообщение отправлено администратору.")
+            logger.info(f"Сообщение от {user_id} переслано администратору")
+            
     except Exception as e:
-        logger.error(f"Ошибка при обработке сообщения: {e}")
+        logger.error(f"Ошибка при обработке: {e}")
+        bot.reply_to(message, "❌ Произошла ошибка. Попробуйте ещё раз.")
 
-# Обработчик для фото, голоса, стикеров и т.д.
-@bot.message_handler(content_types=['photo', 'voice', 'sticker', 'document', 'video', 'audio'])
+# Обработчик для медиа (фото, голос, стикеры) — пересылаем администратору
+@bot.message_handler(func=lambda message: message.chat.id != ADMIN_ID, content_types=['photo', 'voice', 'sticker', 'document', 'video', 'audio'])
 def handle_user_media(message):
     try:
         user_id = message.chat.id
         user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
-        prefix = f"📩 Новое сообщение от {user_name} (ID: {user_id})"
-        
-        # Если сообщение от администратора — просто пересылаем ему же (для теста)
-        if user_id == ADMIN_ID:
-            bot.send_message(ADMIN_ID, f"📩 Вы отправили себе (ID: {user_id}): медиафайл")
-            bot.reply_to(message, "✅ Ваше медиа отправлено (самому себе).")
-            logger.info(f"Медиа от администратора {user_id} переслано обратно")
-            return
+        prefix = f"📩 Новое медиа от {user_name} (ID: {user_id})"
         
         if message.photo:
             caption = message.caption or ""
@@ -77,7 +119,7 @@ def handle_user_media(message):
         else:
             bot.send_message(ADMIN_ID, f"{prefix} (тип: {message.content_type})")
         
-        bot.reply_to(message, "✅ Ваше сообщение отправлено. Ожидайте ответа.")
+        bot.reply_to(message, "✅ Ваше сообщение отправлено администратору.")
         logger.info(f"Медиа от {user_id} переслано администратору")
     except Exception as e:
         logger.error(f"Ошибка при обработке медиа: {e}")
@@ -105,6 +147,7 @@ if __name__ == "__main__":
     logger.info("🚀 Бот запущен!")
     logger.info(f"Бот: @{bot.get_me().username}")
     logger.info(f"Администратор: {ADMIN_ID}")
+    logger.info("💬 AI-помощник и пересыльщик сообщений активны!")
     
     while True:
         try:
