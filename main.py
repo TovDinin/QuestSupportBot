@@ -15,24 +15,46 @@ if not BOT_TOKEN or not ADMIN_ID:
 ADMIN_ID = int(ADMIN_ID)
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# ========== КОМАНДА ДЛЯ ДИАГНОСТИКИ ==========
+# ========== ФУНКЦИЯ ПРИНУДИТЕЛЬНОЙ ОТПРАВКИ ==========
+def force_send(chat_id, text):
+    """Отправляет сообщение с повторной попыткой в случае ошибки"""
+    try:
+        bot.send_message(chat_id, text)
+        logger.info(f"✅ Сообщение отправлено {chat_id}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка отправки: {e}")
+        # Пробуем через API напрямую (обходной путь)
+        try:
+            import requests
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            data = {"chat_id": chat_id, "text": text}
+            response = requests.post(url, data=data)
+            if response.ok:
+                logger.info(f"✅ Сообщение отправлено через API {chat_id}")
+                return True
+            else:
+                logger.error(f"❌ Ошибка API: {response.text}")
+                return False
+        except Exception as e2:
+            logger.error(f"❌ Ошибка API: {e2}")
+            return False
+
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    bot.reply_to(message, "👋 Привет! Бот работает. Напишите любое сообщение, и оно будет переслано администратору.")
+    bot.reply_to(message, "👋 Привет! Бот работает.")
     logger.info(f"✅ /start от {message.chat.id}")
 
 @bot.message_handler(commands=['admin'])
 def handle_admin_check(message):
-    """Проверяет, доходит ли сообщение до администратора"""
-    try:
-        bot.send_message(ADMIN_ID, f"🔔 Тестовое сообщение администратору от бота. Ваш ID: {ADMIN_ID}")
+    """Проверка связи с администратором"""
+    result = force_send(ADMIN_ID, f"🔔 Тестовое сообщение администратору. Ваш ID: {ADMIN_ID}")
+    if result:
         bot.reply_to(message, f"✅ Тестовое сообщение отправлено администратору ({ADMIN_ID}). Проверьте Telegram!")
-        logger.info(f"✅ Тестовое сообщение отправлено администратору {ADMIN_ID}")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Ошибка при отправке тестового сообщения: {e}")
-        logger.error(f"❌ Ошибка отправки тестового сообщения: {e}")
+    else:
+        bot.reply_to(message, f"❌ Не удалось отправить сообщение администратору. Проверьте логи.")
+    logger.info(f"📤 Тестовое сообщение администратору {ADMIN_ID}: {'✅' if result else '❌'}")
 
-# ========== ОБРАБОТЧИК ВСЕХ СООБЩЕНИЙ ==========
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
     try:
@@ -42,26 +64,17 @@ def handle_all_messages(message):
         
         logger.info(f"📩 Входящее сообщение от {user_id} ({user_name}): {user_text[:50]}")
 
-        # Если это команда /admin — обработана выше
-        if user_text.startswith('/admin'):
+        if user_text.startswith('/start') or user_text.startswith('/admin'):
             return
 
-        # Если это команда /start — обработана выше
-        if user_text.startswith('/start'):
-            return
-
-        # Медиа
         if message.content_type in ['photo', 'voice', 'sticker', 'document', 'video', 'audio']:
-            bot.send_message(ADMIN_ID, f"📩 Медиа от {user_name} (ID: {user_id})")
+            force_send(ADMIN_ID, f"📩 Медиа от {user_name} (ID: {user_id})")
             bot.reply_to(message, "✅ Медиа отправлено администратору.")
-            logger.info(f"📷 Медиа от {user_id} переслано администратору")
             return
 
-        # Текстовые сообщения
         if user_text:
-            # ВСЕГДА пересылаем администратору
             forward_text = f"📩 Сообщение от {user_name} (ID: {user_id}):\n\n{user_text}"
-            bot.send_message(ADMIN_ID, forward_text)
+            force_send(ADMIN_ID, forward_text)
             bot.reply_to(message, "✅ Сообщение отправлено администратору.")
             logger.info(f"📤 Сообщение от {user_id} переслано администратору ({ADMIN_ID})")
             return
@@ -78,7 +91,7 @@ if __name__ == "__main__":
     logger.info(f"🤖 @{bot.get_me().username}")
     logger.info(f"👤 Администратор: {ADMIN_ID}")
     logger.info("💬 Ожидание сообщений...")
-    logger.info("📌 Команды: /start - приветствие, /admin - тест связи с администратором")
+    logger.info("📌 Команды: /start - приветствие, /admin - тест связи")
 
     while True:
         try:
