@@ -5,12 +5,15 @@ import logging
 import re
 import random
 from datetime import datetime
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 ADMIN_ID = os.environ.get('ADMIN_ID')
+# Опционально: ссылка на канал/чат для оповещений о донатах
+DONATE_CHANNEL = os.environ.get('DONATE_CHANNEL', '')
 
 if not BOT_TOKEN or not ADMIN_ID:
     raise ValueError("BOT_TOKEN и ADMIN_ID должны быть заданы!")
@@ -18,12 +21,27 @@ if not BOT_TOKEN or not ADMIN_ID:
 ADMIN_ID = int(ADMIN_ID)
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# ========== БАЗА ДЛЯ ХРАНЕНИЯ ДОНАТОВ ==========
+DONATIONS_FILE = 'donations.json'
+
+def load_donations():
+    try:
+        with open(DONATIONS_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return {'total_stars': 0, 'donors': [], 'transactions': []}
+
+def save_donations(data):
+    try:
+        with open(DONATIONS_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except:
+        pass
+
 # ========== БАЗА ЗНАНИЙ С ЮМОРОМ ==========
 
-# Контекст пользователей
 USER_CONTEXT = {}
 
-# Приветствия
 GREETINGS = [
     "👋 Привет! Я AI-помощник квеста «Тайны вашего города». Готов к приключениям!",
     "Здравствуйте! Я здесь, чтобы помочь вам открыть тайны города. Спрашивайте!",
@@ -32,7 +50,6 @@ GREETINGS = [
     "Привет! Я как GPS, только с чувством юмора. Чем могу помочь?"
 ]
 
-# Прощания
 FAREWELLS = [
     "До встречи! Пусть ваш квест будет полон открытий! 🗺️",
     "Пока-пока! Не забудьте взять с собой хорошее настроение! 😄",
@@ -40,7 +57,6 @@ FAREWELLS = [
     "Удачи! И помните: в квесте главное — не победа, а приключения! ⭐"
 ]
 
-# Благодарности
 THANKS = [
     "Пожалуйста! Я для этого и создан 😊",
     "Всегда рад помочь! 🗺️",
@@ -48,15 +64,188 @@ THANKS = [
     "Пожалуйста! Если нужна будет помощь — я тут как тут."
 ]
 
-# ========== РАСШИРЕННЫЕ ОТВЕТЫ ПО ТЕМАМ ==========
+# ========== ДОНАТЫ ==========
+
+def create_donate_invoice(user_id, amount):
+    """Создаёт счёт на оплату через Telegram Stars"""
+    try:
+        # Создаём инвойс
+        invoice = bot.send_invoice(
+            chat_id=user_id,
+            title="☕ Поддержка квеста «Тайны вашего города»",
+            description=f"Спасибо за вашу поддержку! 🌟\n\nВаш донат поможет нам создавать новые маршруты и улучшать приложение.\n\nСумма: {amount} ⭐",
+            payload=f"donate_{user_id}_{int(time.time())}",
+            provider_token="",  # Для Stars оставляем пустым
+            currency="XTR",  # Telegram Stars
+            prices=[{"label": f"{amount} ⭐", "amount": amount}],
+            start_parameter="donate",
+            need_name=False,
+            need_phone_number=False,
+            need_email=False,
+            is_flexible=False
+        )
+        logger.info(f"💰 Инвойс на {amount} ⭐ создан для {user_id}")
+        return invoice
+    except Exception as e:
+        logger.error(f"❌ Ошибка создания инвойса: {e}")
+        return None
+
+# Обработчик успешной оплаты (важно!)
+@bot.pre_checkout_query_handler(func=lambda query: True)
+def handle_pre_checkout(query):
+    try:
+        bot.answer_pre_checkout_query(query.id, ok=True)
+        logger.info(f"✅ Pre-checkout успешен для {query.from_user.id}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка pre-checkout: {e}")
+        bot.answer_pre_checkout_query(query.id, ok=False, error_message="Произошла ошибка. Попробуйте ещё раз.")
+
+@bot.message_handler(content_types=['successful_payment'])
+def handle_successful_payment(message):
+    try:
+        user_id = message.from_user.id
+        user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
+        amount = message.successful_payment.total_amount
+        currency = message.successful_payment.currency
+        
+        # Сохраняем информацию о донате
+        donations = load_donations()
+        donations['total_stars'] += amount
+        donations['donors'].append({
+            'user_id': user_id,
+            'name': user_name,
+            'amount': amount,
+            'date': datetime.now().isoformat()
+        })
+        donations['transactions'].append({
+            'user_id': user_id,
+            'amount': amount,
+            'date': datetime.now().isoformat()
+        })
+        save_donations(donations)
+        
+        # Благодарим пользователя
+        thank_messages = [
+            f"🌟 Огромное спасибо за поддержку {amount} ⭐!\n\nВаш донат поможет сделать квест ещё лучше! Мы уже придумываем новые маршруты. 🗺️",
+            f"🎉 Спасибо за {amount} ⭐! Вы — настоящий герой! Ваша поддержка вдохновляет нас создавать новые приключения. 🚀",
+            f"💫 {amount} ⭐ получены! Вы официально вступили в клуб «Друзей квеста». Ваше имя будет вписано в историю! 😄",
+            f"☕ Спасибо за угощение на {amount} ⭐! Мы выпьем кофе за вас и придумаем новые загадки. 🗺️"
+        ]
+        bot.send_message(user_id, random.choice(thank_messages))
+        logger.info(f"💰 Донат {amount} ⭐ от {user_id} ({user_name})")
+        
+        # Оповещаем администратора
+        admin_msg = f"💰 НОВЫЙ ДОНАТ!\n\nОт: {user_name} (ID: {user_id})\nСумма: {amount} ⭐\nВсего звёзд: {donations['total_stars']}"
+        bot.send_message(ADMIN_ID, admin_msg)
+        
+        # Если есть канал — оповещаем туда
+        if DONATE_CHANNEL:
+            try:
+                bot.send_message(DONATE_CHANNEL, f"🌟 {user_name} поддержал проект на {amount} ⭐! Спасибо!")
+            except:
+                pass
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка обработки доната: {e}")
+
+# ========== КОМАНДЫ ДОНАТОВ ==========
+
+@bot.message_handler(commands=['donate'])
+def handle_donate_command(message):
+    """Команда /donate — показать варианты донатов"""
+    text = """☕ **Поддержать проект «Тайны вашего города»**
+
+Спасибо, что хотите нас поддержать! Ваш донат поможет:
+
+• Создавать новые квесты в других городах
+• Улучшать приложение и AI-помощника
+• Добавлять новые функции и маршруты
+
+🌟 **Суммы доната:**
+
+/donate_10 — 10 ⭐ (≈ 0.5$)
+/donate_25 — 25 ⭐ (≈ 1.2$)
+/donate_50 — 50 ⭐ (≈ 2.5$)
+/donate_100 — 100 ⭐ (≈ 5$)
+/donate_custom — указать свою сумму
+
+💡 **Как это работает:**
+1. Выберите сумму или укажите свою
+2. Оплата через Telegram Stars
+3. Мы получим уведомление и поблагодарим вас!
+
+🔮 **Бонус для донатеров:**
+• Имя в списке благодарностей (при желании)
+• Доступ к закрытым новостям о разработке
+• Ваше предложение по новому городу — в приоритете!
+
+💬 Если хотите анонимно — просто напишите об этом в комментарии к донату.
+
+Спасибо, что делаете квест лучше! 🙌
+"""
+    bot.reply_to(message, text, parse_mode='Markdown')
+
+@bot.message_handler(commands=['donate_10', 'donate_25', 'donate_50', 'donate_100'])
+def handle_donate_preset(message):
+    """Обработка предустановленных сумм донатов"""
+    amounts = {
+        '/donate_10': 10,
+        '/donate_25': 25,
+        '/donate_50': 50,
+        '/donate_100': 100
+    }
+    amount = amounts.get(message.text, 10)
+    create_donate_invoice(message.chat.id, amount)
+
+@bot.message_handler(commands=['donate_custom'])
+def handle_donate_custom(message):
+    """Обработка пользовательской суммы"""
+    bot.reply_to(message, "🌟 Напишите сумму в Telegram Stars (число):")
+    bot.register_next_step_handler(message, process_custom_donate)
+
+def process_custom_donate(message):
+    try:
+        amount = int(message.text.strip())
+        if amount < 1:
+            bot.reply_to(message, "❌ Минимальная сумма — 1 ⭐. Попробуйте ещё раз.")
+            return
+        if amount > 10000:
+            bot.reply_to(message, "😅 Вау! 10 000 ⭐ — это очень щедро! Но давайте не будем перегружать систему. Максимум 1000 ⭐.")
+            return
+        create_donate_invoice(message.chat.id, amount)
+    except ValueError:
+        bot.reply_to(message, "❌ Введите число, например: 50")
+
+@bot.message_handler(commands=['donate_stats'])
+def handle_donate_stats(message):
+    """Показать статистику донатов (только для администратора)"""
+    if message.chat.id != ADMIN_ID:
+        bot.reply_to(message, "❌ Эта команда только для администратора.")
+        return
+    
+    donations = load_donations()
+    total = donations['total_stars']
+    count = len(donations['donors'])
+    
+    text = f"💰 **Статистика донатов:**\n\n"
+    text += f"⭐ Всего собрано: {total} звёзд\n"
+    text += f"👤 Количество донатеров: {count}\n\n"
+    
+    if donations['donors']:
+        text += "**Последние донаты:**\n"
+        for donor in donations['donors'][-5:]:
+            text += f"• {donor['name']}: +{donor['amount']} ⭐ ({donor['date'][:10]})\n"
+    
+    bot.reply_to(message, text, parse_mode='Markdown')
+
+# ========== AI-ЛОГИКА ==========
 
 def get_ai_response(text, user_id=None):
     """Умный ответ с учётом контекста и юмора"""
     q = text.lower().strip()
     
-    # Проверяем контекст (если пользователь уже спрашивал о чём-то)
+    # Контекст
     context = USER_CONTEXT.get(user_id, {})
-    last_topic = context.get('last_topic')
     topic_count = context.get('topic_count', 0)
     
     # Приветствия
@@ -74,15 +263,17 @@ def get_ai_response(text, user_id=None):
         USER_CONTEXT[user_id] = {'last_topic': 'thanks', 'topic_count': topic_count + 1}
         return random.choice(THANKS)
     
-    # Жалобы на бота или настроение
-    if re.search(r'(скучн|грустн|тоск|депрес|печаль|не весело|плохое настроение)', q):
-        return random.choice([
-            "😄 Не грустите! Квест — лучшее лекарство от скуки. Выходите на улицу и ищите приключения!",
-            "Ой, не надо грустить! Я вам сейчас расскажу смешной факт: в Тобольске есть памятник комару. Да-да, комару!",
-            "Плохое настроение? Срочно отправляйтесь на квест! Ходьба и загадки повышают уровень дофамина на 100%! 😄"
-        ])
+    # Донаты
+    if re.search(r'(донат|поддерж|звезд|star|перевести|кинуть|бросить|закинуть)', q):
+        return """☕ **Поддержать проект можно через Telegram Stars!**
+
+Просто отправьте команду /donate и выберите сумму.
+
+Ваш донат поможет нам создавать новые квесты и улучшать приложение. Спасибо! 🙌
+
+💡 Если не знаете, что такое Telegram Stars — это внутренняя валюта Telegram. Вы покупаете их в магазине приложений и можете отправлять разработчикам."""
     
-    # Баллы (с юмором)
+    # Баллы
     if re.search(r'(балл|очк|счёт|score|набрать|сколько|максимум|рейтинг|кубок)', q):
         USER_CONTEXT[user_id] = {'last_topic': 'score', 'topic_count': topic_count + 1}
         return random.choice([
@@ -90,17 +281,17 @@ def get_ai_response(text, user_id=None):
             "🏆 Как набрать максимум? Читайте загадки внимательно, не торопитесь и не нажимайте «Проверить» с закрытыми глазами. Шутка. Ну почти. 😄\n\n• 1 попытка = 3 балла\n• 2 попытка = 2 балла\n• 3 попытка = 1 балл\n\nУдачи, эрудит!"
         ])
     
-    # Маршруты и расстояние (с юмором)
+    # Маршруты
     if re.search(r'(маршрут|протяжённ|длина|расстояни|километр|км|время|часов|идти|сколько идти)', q):
         USER_CONTEXT[user_id] = {'last_topic': 'route', 'topic_count': topic_count + 1}
         return "📍 **Маршруты (и сколько калорий вы сожжёте):**\n\n• **Тобольск** — 6.3 км, ~1.9 часа (🔥 ~360 ккал — как бургер!)\n• **Роттердам** — 5.5 км, ~2.0 часа (🔥 ~310 ккал — почти пицца!)\n• **Венеция** — 6.5 км, ~3.0 часа (🔥 ~370 ккал — как два круассана!)\n\n😄 Если вы прошли все три — вы официально сожгли недельный запас шоколада!"
     
-    # Города (с юмором)
+    # Города
     if re.search(r'(город|city|какие города|доступн|выбрать|список|новые города|добавят)', q):
         USER_CONTEXT[user_id] = {'last_topic': 'cities', 'topic_count': topic_count + 1}
         return "🏙️ **Доступные города для квеста:**\n\n• **Тобольск** — 12 точек (древняя столица Сибири, между прочим!)\n• **Роттердам** — 10 точек (город современных кубов и мостов)\n• **Венеция** — 11 точек (город, где вместо дорог — каналы. Надевайте удобную обувь!)\n\n🌍 Новые города появляются… когда мы успеваем их придумать! 😄 Если хотите добавить свой город — напишите нам."
     
-    # Подсказки (с юмором)
+    # Подсказки
     if re.search(r'(подсказк|hint|помощь|как найти|где искать|не могу найти|застрял|трудн|сложн|не понимаю)', q):
         USER_CONTEXT[user_id] = {'last_topic': 'hint', 'topic_count': topic_count + 1}
         return random.choice([
@@ -108,30 +299,23 @@ def get_ai_response(text, user_id=None):
             "🔍 Не можете найти точку? Попробуйте подойти к вопросу с юмором. Например, спросите себя: «А где бы я спрятал загадку, если бы был архитектором XIX века?» 😄\n\nСовет: ищите нестандартные детали — старые фонари, барельефы, таблички с датами."
         ])
     
-    # Загадки (с юмором)
+    # Загадки
     if re.search(r'(загадк|riddle|ответ|что значит|как решить|не могу разгадать)', q):
         USER_CONTEXT[user_id] = {'last_topic': 'riddle', 'topic_count': topic_count + 1}
         return "🔍 **Как разгадывать загадки:**\n\n• Внимательно читайте текст — ключ к ответу всегда в нём.\n• Думайте нестандартно! Загадки часто играют с ассоциациями.\n• Ответ — обычно одно слово или короткая фраза.\n\n😄 Если совсем трудно — попросите подсказку. Но помните: подсказка стоит 0 баллов, зато вы сохраните нервные клетки!"
     
-    # Контакты и поддержка
+    # Контакты
     if re.search(r'(контакт|админ|разработчик|телеграм|email|поддержк|help|support|жалоб|отзыв|проблем)', q):
         return "📩 **Связаться с нами:**\n\n• **Telegram:** @Quest_supportbot (я сам!)\n• **Email:** quest@tobolsk-quest.com\n• **В приложении:** кнопка «Обратная связь»\n\n😄 Если вы пишете жалобу — сначала расскажите анекдот, чтобы мы не грустили!"
     
-    # Юморные вопросы
+    # Юмор
     if re.search(r'(шутк|анекдот|смешн|забавн|прикол|рассмеш)', q):
         return random.choice([
             "😂 Хотите анекдот?\n\n— Почему квест в Тобольске такой длинный?\n— Потому что сибиряки любят гулять!\n\n😄 Ну как?",
             "🤣 Анекдот дня:\n\nВстречаются два туриста в Венеции:\n— Ты уже нашёл нужный мост?\n— Нет, но я уже 10 раз пересёк Гранд-канал!\n\nА вы нашли свой мост? 😄"
         ])
     
-    # Вопросы о смысле жизни (с юмором)
-    if re.search(r'(смысл жизни|зачем|почему я здесь|что делать|жизн|философ)', q):
-        return random.choice([
-            "🌍 Смысл жизни — в путешествиях и открытиях! А если серьёзно, то смысл жизни — пройти все квесты и набрать максимум баллов. Ну, или просто хорошо провести время. 😄",
-            "🤔 Философский вопрос! Я бы сказал, что смысл жизни — это найти все 12 точек в Тобольске. А после этого — перейти к Роттердаму. А там и до Венеции рукой подать. 🗺️"
-        ])
-    
-    # Бессвязные и запутанные вопросы
+    # Бессвязные
     if len(q) < 5 or re.search(r'(абракадабра|ыва|фыв|олд|шшш|ххх)', q):
         return random.choice([
             "😄 Я бы ответил, но это звучит как загадка из другого квеста. Попробуйте перефразировать!",
@@ -139,21 +323,13 @@ def get_ai_response(text, user_id=None):
             "🤖 БИП-БУП! Не понял. Может быть, вы случайно нажали на клавиатуру? Попробуйте ещё раз, только по-человечески. 😄"
         ])
     
-    # Если вопрос не распознан — предлагаем выбор
+    # Если не распознан
     return random.choice([
-        "🤔 Хм... Я не совсем уловил суть. Вот что я умею:\n\n• **Баллы** — как набрать максимум\n• **Маршруты** — длина и калории\n• **Города** — какие доступны\n• **Подсказки** — как не заблудиться\n• **Загадки** — как разгадывать\n• **Юмор** — анекдоты и шутки\n\nПопробуйте спросить о чём-то из этого! 😊",
-        
-        "😄 Я бы хотел помочь, но ваш вопрос звучит как загадка Сфинкса. Попробуйте спросить про баллы, маршруты или города — я в этом силён!",
-        
-        "🤖 Моя база знаний ограничена квестами, городами и загадками. Если вы спросите про погоду — я отправлю вас к метеорологам. А если про квест — я ваш человек!"
+        "🤔 Хм... Я не совсем уловил суть. Вот что я умею:\n\n• **Баллы** — как набрать максимум\n• **Маршруты** — длина и калории\n• **Города** — какие доступны\n• **Подсказки** — как не заблудиться\n• **Загадки** — как разгадывать\n• **Донаты** — поддержать проект\n• **Юмор** — анекдоты и шутки\n\nПопробуйте спросить о чём-то из этого! 😊",
+        "😄 Я бы хотел помочь, но ваш вопрос звучит как загадка Сфинкса. Попробуйте спросить про баллы, маршруты или донаты — я в этом силён!"
     ])
 
 # ========== ОСНОВНАЯ ЛОГИКА ==========
-
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    bot.reply_to(message, "👋 Привет! Я AI-помощник квеста «Тайны вашего города».\n\nЯ отвечаю на вопросы о:\n• баллах и правилах\n• маршрутах и городах\n• подсказках и загадках\n• контактах\n\nА ещё я умею шутить! Попробуйте спросить что-нибудь сложное и запутанное — я отвечу с юмором! 😄\n\nЕсли я не пойму вопрос — перешлю его администратору.")
-    logger.info(f"✅ /start от {message.chat.id}")
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
@@ -165,7 +341,7 @@ def handle_all_messages(message):
         if user_text.startswith('/'):
             return
         
-        # Медиа — пересылаем администратору
+        # Медиа
         if message.content_type in ['photo', 'voice', 'sticker', 'document', 'video', 'audio']:
             bot.send_message(ADMIN_ID, f"📩 Медиа от {user_name} (ID: {user_id})")
             bot.reply_to(message, "✅ Медиа отправлено администратору.")
@@ -173,14 +349,12 @@ def handle_all_messages(message):
             return
         
         if user_text:
-            # Пытаемся получить AI-ответ
             ai_response = get_ai_response(user_text, user_id)
             
             if ai_response:
                 bot.send_message(user_id, ai_response)
                 logger.info(f"🤖 AI-ответ для {user_id}: {ai_response[:50]}...")
             else:
-                # Если AI не понял — пересылаем администратору
                 forward_text = f"📩 Сообщение от {user_name} (ID: {user_id}):\n\n{user_text}"
                 bot.send_message(ADMIN_ID, forward_text)
                 bot.reply_to(message, "✅ Ваше сообщение отправлено администратору.")
@@ -214,7 +388,7 @@ if __name__ == "__main__":
     logger.info("🚀 БОТ ЗАПУЩЕН!")
     logger.info(f"🤖 @{bot.get_me().username}")
     logger.info(f"👤 Администратор: {ADMIN_ID}")
-    logger.info("🧠 Умный AI-помощник с юмором активен!")
+    logger.info("🧠 Умный AI-помощник с донатами активен!")
     
     while True:
         try:
