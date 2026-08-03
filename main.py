@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 ADMIN_ID = os.environ.get('ADMIN_ID')
-# Опционально: ссылка на канал/чат для оповещений о донатах
 DONATE_CHANNEL = os.environ.get('DONATE_CHANNEL', '')
 
 if not BOT_TOKEN or not ADMIN_ID:
@@ -21,7 +20,7 @@ if not BOT_TOKEN or not ADMIN_ID:
 ADMIN_ID = int(ADMIN_ID)
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# ========== БАЗА ДЛЯ ХРАНЕНИЯ ДОНАТОВ ==========
+# ========== ХРАНИЛИЩЕ ДОНАТОВ ==========
 DONATIONS_FILE = 'donations.json'
 
 def load_donations():
@@ -38,10 +37,10 @@ def save_donations(data):
     except:
         pass
 
-# ========== БАЗА ЗНАНИЙ С ЮМОРОМ ==========
-
+# ========== КОНТЕКСТ ПОЛЬЗОВАТЕЛЕЙ ==========
 USER_CONTEXT = {}
 
+# ========== ПРИВЕТСТВИЯ И ПРОЩАНИЯ ==========
 GREETINGS = [
     "👋 Привет! Я AI-помощник квеста «Тайны вашего города». Готов к приключениям!",
     "Здравствуйте! Я здесь, чтобы помочь вам открыть тайны города. Спрашивайте!",
@@ -64,19 +63,24 @@ THANKS = [
     "Пожалуйста! Если нужна будет помощь — я тут как тут."
 ]
 
+# ========== КОМАНДА /start (ОБЯЗАТЕЛЬНАЯ) ==========
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    bot.reply_to(message, "👋 Привет! Я AI-помощник квеста «Тайны вашего города».\n\nЯ отвечаю на вопросы о:\n• баллах и правилах\n• маршрутах и городах\n• подсказках и загадках\n• донатах\n\nА ещё я умею шутить! Попробуйте спросить что-нибудь сложное! 😄")
+    logger.info(f"✅ /start от {message.chat.id}")
+
 # ========== ДОНАТЫ ==========
 
 def create_donate_invoice(user_id, amount):
     """Создаёт счёт на оплату через Telegram Stars"""
     try:
-        # Создаём инвойс
         invoice = bot.send_invoice(
             chat_id=user_id,
             title="☕ Поддержка квеста «Тайны вашего города»",
             description=f"Спасибо за вашу поддержку! 🌟\n\nВаш донат поможет нам создавать новые маршруты и улучшать приложение.\n\nСумма: {amount} ⭐",
             payload=f"donate_{user_id}_{int(time.time())}",
-            provider_token="",  # Для Stars оставляем пустым
-            currency="XTR",  # Telegram Stars
+            provider_token="",
+            currency="XTR",
             prices=[{"label": f"{amount} ⭐", "amount": amount}],
             start_parameter="donate",
             need_name=False,
@@ -90,7 +94,6 @@ def create_donate_invoice(user_id, amount):
         logger.error(f"❌ Ошибка создания инвойса: {e}")
         return None
 
-# Обработчик успешной оплаты (важно!)
 @bot.pre_checkout_query_handler(func=lambda query: True)
 def handle_pre_checkout(query):
     try:
@@ -106,9 +109,7 @@ def handle_successful_payment(message):
         user_id = message.from_user.id
         user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
         amount = message.successful_payment.total_amount
-        currency = message.successful_payment.currency
         
-        # Сохраняем информацию о донате
         donations = load_donations()
         donations['total_stars'] += amount
         donations['donors'].append({
@@ -124,27 +125,23 @@ def handle_successful_payment(message):
         })
         save_donations(donations)
         
-        # Благодарим пользователя
         thank_messages = [
-            f"🌟 Огромное спасибо за поддержку {amount} ⭐!\n\nВаш донат поможет сделать квест ещё лучше! Мы уже придумываем новые маршруты. 🗺️",
-            f"🎉 Спасибо за {amount} ⭐! Вы — настоящий герой! Ваша поддержка вдохновляет нас создавать новые приключения. 🚀",
-            f"💫 {amount} ⭐ получены! Вы официально вступили в клуб «Друзей квеста». Ваше имя будет вписано в историю! 😄",
-            f"☕ Спасибо за угощение на {amount} ⭐! Мы выпьем кофе за вас и придумаем новые загадки. 🗺️"
+            f"🌟 Огромное спасибо за поддержку {amount} ⭐!\n\nВаш донат поможет сделать квест ещё лучше! 🗺️",
+            f"🎉 Спасибо за {amount} ⭐! Вы — настоящий герой! 🚀",
+            f"💫 {amount} ⭐ получены! Вы официально в клубе «Друзей квеста»! 😄",
+            f"☕ Спасибо за угощение на {amount} ⭐! Мы выпьем кофе за вас! 🗺️"
         ]
         bot.send_message(user_id, random.choice(thank_messages))
         logger.info(f"💰 Донат {amount} ⭐ от {user_id} ({user_name})")
         
-        # Оповещаем администратора
         admin_msg = f"💰 НОВЫЙ ДОНАТ!\n\nОт: {user_name} (ID: {user_id})\nСумма: {amount} ⭐\nВсего звёзд: {donations['total_stars']}"
         bot.send_message(ADMIN_ID, admin_msg)
         
-        # Если есть канал — оповещаем туда
         if DONATE_CHANNEL:
             try:
                 bot.send_message(DONATE_CHANNEL, f"🌟 {user_name} поддержал проект на {amount} ⭐! Спасибо!")
             except:
                 pass
-                
     except Exception as e:
         logger.error(f"❌ Ошибка обработки доната: {e}")
 
@@ -152,7 +149,6 @@ def handle_successful_payment(message):
 
 @bot.message_handler(commands=['donate'])
 def handle_donate_command(message):
-    """Команда /donate — показать варианты донатов"""
     text = """☕ **Поддержать проект «Тайны вашего города»**
 
 Спасибо, что хотите нас поддержать! Ваш донат поможет:
@@ -187,7 +183,6 @@ def handle_donate_command(message):
 
 @bot.message_handler(commands=['donate_10', 'donate_25', 'donate_50', 'donate_100'])
 def handle_donate_preset(message):
-    """Обработка предустановленных сумм донатов"""
     amounts = {
         '/donate_10': 10,
         '/donate_25': 25,
@@ -199,7 +194,6 @@ def handle_donate_preset(message):
 
 @bot.message_handler(commands=['donate_custom'])
 def handle_donate_custom(message):
-    """Обработка пользовательской суммы"""
     bot.reply_to(message, "🌟 Напишите сумму в Telegram Stars (число):")
     bot.register_next_step_handler(message, process_custom_donate)
 
@@ -218,7 +212,6 @@ def process_custom_donate(message):
 
 @bot.message_handler(commands=['donate_stats'])
 def handle_donate_stats(message):
-    """Показать статистику донатов (только для администратора)"""
     if message.chat.id != ADMIN_ID:
         bot.reply_to(message, "❌ Эта команда только для администратора.")
         return
@@ -241,10 +234,8 @@ def handle_donate_stats(message):
 # ========== AI-ЛОГИКА ==========
 
 def get_ai_response(text, user_id=None):
-    """Умный ответ с учётом контекста и юмора"""
     q = text.lower().strip()
     
-    # Контекст
     context = USER_CONTEXT.get(user_id, {})
     topic_count = context.get('topic_count', 0)
     
