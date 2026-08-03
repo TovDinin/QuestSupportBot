@@ -329,7 +329,9 @@ def handle_all_messages(message):
         user_text = message.text or ""
         user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
         
-        if user_text.startswith('/'):
+        # ===== СПЕЦИАЛЬНЫЕ КОМАНДЫ (обрабатываются здесь, чтобы не упустить) =====
+        if user_text.startswith('/donate') or user_text.startswith('/start'):
+            # Пропускаем — они обрабатываются в своих хендлерах
             return
         
         # Медиа
