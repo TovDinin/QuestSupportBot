@@ -174,8 +174,7 @@ def create_donate_invoice(user_id, amount):
             need_name=False,
             need_phone_number=False,
             need_email=False,
-            is_flexible=False,
-            is_test=True
+            is_flexible=False
         )
         logger.info(f"💰 Инвойс на {amount} ⭐ создан для {user_id}")
         return invoice
