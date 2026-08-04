@@ -166,7 +166,7 @@ def create_donate_invoice(user_id, amount):
             chat_id=user_id,
             title="☕ Поддержка квеста «Тайны вашего города»",
             description=f"Спасибо за вашу поддержку! 🌟\n\nВаш донат поможет нам создавать новые маршруты и улучшать приложение.\n\nСумма: {amount} ⭐",
-            payload=f"donate_{user_id}_{int(time.time())}",
+            invoice_payload=f"donate_{user_id}_{int(time.time())}",
             provider_token="",
             currency="XTR",
             prices=[{"label": f"{amount} ⭐", "amount": amount}],
