@@ -73,6 +73,7 @@ def handle_start(message):
 
 @bot.message_handler(commands=['donate'])
 def handle_donate_command(message):
+    logger.info(f"🔥 Команда /donate получена от {message.chat.id}")
     text = """☕ **Поддержать проект «Тайны вашего города»**
 
 Спасибо, что хотите нас поддержать! Ваш донат поможет:
