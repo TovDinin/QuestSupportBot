@@ -331,7 +331,6 @@ def handle_all_messages(message):
         
         # ===== ВАЖНО: НЕ БЛОКИРУЕМ КОМАНДЫ! =====
         # Все команды (/start, /donate, /donate_10) обрабатываются своими хендлерами.
-        # Сюда попадают только те сообщения, которые не являются командами.
         
         # Медиа
         if message.content_type in ['photo', 'voice', 'sticker', 'document', 'video', 'audio']:
