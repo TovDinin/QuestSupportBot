@@ -63,89 +63,13 @@ THANKS = [
     "Пожалуйста! Если нужна будет помощь — я тут как тут."
 ]
 
-# ========== КОМАНДА /start (ОБЯЗАТЕЛЬНАЯ) ==========
+# ========== КОМАНДА /start ==========
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     bot.reply_to(message, "👋 Привет! Я AI-помощник квеста «Тайны вашего города».\n\nЯ отвечаю на вопросы о:\n• баллах и правилах\n• маршрутах и городах\n• подсказках и загадках\n• донатах\n\nА ещё я умею шутить! Попробуйте спросить что-нибудь сложное! 😄")
     logger.info(f"✅ /start от {message.chat.id}")
 
-# ========== ДОНАТЫ ==========
-
-def create_donate_invoice(user_id, amount):
-    """Создаёт счёт на оплату через Telegram Stars"""
-    try:
-        invoice = bot.send_invoice(
-            chat_id=user_id,
-            title="☕ Поддержка квеста «Тайны вашего города»",
-            description=f"Спасибо за вашу поддержку! 🌟\n\nВаш донат поможет нам создавать новые маршруты и улучшать приложение.\n\nСумма: {amount} ⭐",
-            payload=f"donate_{user_id}_{int(time.time())}",
-            provider_token="",
-            currency="XTR",
-            prices=[{"label": f"{amount} ⭐", "amount": amount}],
-            start_parameter="donate",
-            need_name=False,
-            need_phone_number=False,
-            need_email=False,
-            is_flexible=False
-        )
-        logger.info(f"💰 Инвойс на {amount} ⭐ создан для {user_id}")
-        return invoice
-    except Exception as e:
-        logger.error(f"❌ Ошибка создания инвойса: {e}")
-        return None
-
-@bot.pre_checkout_query_handler(func=lambda query: True)
-def handle_pre_checkout(query):
-    try:
-        bot.answer_pre_checkout_query(query.id, ok=True)
-        logger.info(f"✅ Pre-checkout успешен для {query.from_user.id}")
-    except Exception as e:
-        logger.error(f"❌ Ошибка pre-checkout: {e}")
-        bot.answer_pre_checkout_query(query.id, ok=False, error_message="Произошла ошибка. Попробуйте ещё раз.")
-
-@bot.message_handler(content_types=['successful_payment'])
-def handle_successful_payment(message):
-    try:
-        user_id = message.from_user.id
-        user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
-        amount = message.successful_payment.total_amount
-        
-        donations = load_donations()
-        donations['total_stars'] += amount
-        donations['donors'].append({
-            'user_id': user_id,
-            'name': user_name,
-            'amount': amount,
-            'date': datetime.now().isoformat()
-        })
-        donations['transactions'].append({
-            'user_id': user_id,
-            'amount': amount,
-            'date': datetime.now().isoformat()
-        })
-        save_donations(donations)
-        
-        thank_messages = [
-            f"🌟 Огромное спасибо за поддержку {amount} ⭐!\n\nВаш донат поможет сделать квест ещё лучше! 🗺️",
-            f"🎉 Спасибо за {amount} ⭐! Вы — настоящий герой! 🚀",
-            f"💫 {amount} ⭐ получены! Вы официально в клубе «Друзей квеста»! 😄",
-            f"☕ Спасибо за угощение на {amount} ⭐! Мы выпьем кофе за вас! 🗺️"
-        ]
-        bot.send_message(user_id, random.choice(thank_messages))
-        logger.info(f"💰 Донат {amount} ⭐ от {user_id} ({user_name})")
-        
-        admin_msg = f"💰 НОВЫЙ ДОНАТ!\n\nОт: {user_name} (ID: {user_id})\nСумма: {amount} ⭐\nВсего звёзд: {donations['total_stars']}"
-        bot.send_message(ADMIN_ID, admin_msg)
-        
-        if DONATE_CHANNEL:
-            try:
-                bot.send_message(DONATE_CHANNEL, f"🌟 {user_name} поддержал проект на {amount} ⭐! Спасибо!")
-            except:
-                pass
-    except Exception as e:
-        logger.error(f"❌ Ошибка обработки доната: {e}")
-
-# ========== КОМАНДЫ ДОНАТОВ ==========
+# ========== КОМАНДЫ ДОНАТОВ (ДОЛЖНЫ БЫТЬ ВЫШЕ ОСНОВНОГО ОБРАБОТЧИКА) ==========
 
 @bot.message_handler(commands=['donate'])
 def handle_donate_command(message):
@@ -230,6 +154,82 @@ def handle_donate_stats(message):
             text += f"• {donor['name']}: +{donor['amount']} ⭐ ({donor['date'][:10]})\n"
     
     bot.reply_to(message, text, parse_mode='Markdown')
+
+# ========== ДОНАТЫ (ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ) ==========
+
+def create_donate_invoice(user_id, amount):
+    """Создаёт счёт на оплату через Telegram Stars"""
+    try:
+        invoice = bot.send_invoice(
+            chat_id=user_id,
+            title="☕ Поддержка квеста «Тайны вашего города»",
+            description=f"Спасибо за вашу поддержку! 🌟\n\nВаш донат поможет нам создавать новые маршруты и улучшать приложение.\n\nСумма: {amount} ⭐",
+            payload=f"donate_{user_id}_{int(time.time())}",
+            provider_token="",
+            currency="XTR",
+            prices=[{"label": f"{amount} ⭐", "amount": amount}],
+            start_parameter="donate",
+            need_name=False,
+            need_phone_number=False,
+            need_email=False,
+            is_flexible=False
+        )
+        logger.info(f"💰 Инвойс на {amount} ⭐ создан для {user_id}")
+        return invoice
+    except Exception as e:
+        logger.error(f"❌ Ошибка создания инвойса: {e}")
+        return None
+
+@bot.pre_checkout_query_handler(func=lambda query: True)
+def handle_pre_checkout(query):
+    try:
+        bot.answer_pre_checkout_query(query.id, ok=True)
+        logger.info(f"✅ Pre-checkout успешен для {query.from_user.id}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка pre-checkout: {e}")
+        bot.answer_pre_checkout_query(query.id, ok=False, error_message="Произошла ошибка. Попробуйте ещё раз.")
+
+@bot.message_handler(content_types=['successful_payment'])
+def handle_successful_payment(message):
+    try:
+        user_id = message.from_user.id
+        user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
+        amount = message.successful_payment.total_amount
+        
+        donations = load_donations()
+        donations['total_stars'] += amount
+        donations['donors'].append({
+            'user_id': user_id,
+            'name': user_name,
+            'amount': amount,
+            'date': datetime.now().isoformat()
+        })
+        donations['transactions'].append({
+            'user_id': user_id,
+            'amount': amount,
+            'date': datetime.now().isoformat()
+        })
+        save_donations(donations)
+        
+        thank_messages = [
+            f"🌟 Огромное спасибо за поддержку {amount} ⭐!\n\nВаш донат поможет сделать квест ещё лучше! 🗺️",
+            f"🎉 Спасибо за {amount} ⭐! Вы — настоящий герой! 🚀",
+            f"💫 {amount} ⭐ получены! Вы официально в клубе «Друзей квеста»! 😄",
+            f"☕ Спасибо за угощение на {amount} ⭐! Мы выпьем кофе за вас! 🗺️"
+        ]
+        bot.send_message(user_id, random.choice(thank_messages))
+        logger.info(f"💰 Донат {amount} ⭐ от {user_id} ({user_name})")
+        
+        admin_msg = f"💰 НОВЫЙ ДОНАТ!\n\nОт: {user_name} (ID: {user_id})\nСумма: {amount} ⭐\nВсего звёзд: {donations['total_stars']}"
+        bot.send_message(ADMIN_ID, admin_msg)
+        
+        if DONATE_CHANNEL:
+            try:
+                bot.send_message(DONATE_CHANNEL, f"🌟 {user_name} поддержал проект на {amount} ⭐! Спасибо!")
+            except:
+                pass
+    except Exception as e:
+        logger.error(f"❌ Ошибка обработки доната: {e}")
 
 # ========== AI-ЛОГИКА ==========
 
@@ -320,7 +320,7 @@ def get_ai_response(text, user_id=None):
         "😄 Я бы хотел помочь, но ваш вопрос звучит как загадка Сфинкса. Попробуйте спросить про баллы, маршруты или донаты — я в этом силён!"
     ])
 
-# ========== ОСНОВНАЯ ЛОГИКА ==========
+# ========== ОСНОВНОЙ ОБРАБОТЧИК (ДОЛЖЕН БЫТЬ САМЫМ ПОСЛЕДНИМ) ==========
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
@@ -329,8 +329,9 @@ def handle_all_messages(message):
         user_text = message.text or ""
         user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
         
-        # ===== ВАЖНО: НЕ БЛОКИРУЕМ КОМАНДЫ! =====
-        # Все команды (/start, /donate, /donate_10) обрабатываются своими хендлерами.
+        # Пропускаем команды (они уже обработаны выше)
+        if user_text.startswith('/'):
+            return
         
         # Медиа
         if message.content_type in ['photo', 'voice', 'sticker', 'document', 'video', 'audio']:
@@ -357,6 +358,8 @@ def handle_all_messages(message):
             bot.reply_to(message, "❌ Произошла ошибка. Попробуйте ещё раз.")
         except:
             pass
+
+# ========== ОТВЕТЫ АДМИНИСТРАТОРА ==========
 
 @bot.message_handler(func=lambda message: message.chat.id == ADMIN_ID and message.reply_to_message is not None)
 def handle_admin_reply(message):
