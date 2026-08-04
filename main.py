@@ -108,6 +108,7 @@ def handle_donate_command(message):
 
 @bot.message_handler(commands=['donate_10', 'donate_25', 'donate_50', 'donate_100'])
 def handle_donate_preset(message):
+    logger.info(f"🔥 Команда {message.text} получена от {message.chat.id}")
     amounts = {
         '/donate_10': 10,
         '/donate_25': 25,
