@@ -162,6 +162,8 @@ def handle_donate_stats(message):
 def create_donate_invoice(user_id, amount):
     """Создаёт счёт на оплату через Telegram Stars"""
     try:
+        amount = int(amount)
+        
         invoice = bot.send_invoice(
             chat_id=user_id,
             title="☕ Поддержка квеста «Тайны вашего города»",
@@ -181,7 +183,6 @@ def create_donate_invoice(user_id, amount):
     except Exception as e:
         logger.error(f"❌ Ошибка создания инвойса: {e}")
         return None
-
 @bot.pre_checkout_query_handler(func=lambda query: True)
 def handle_pre_checkout(query):
     try:
