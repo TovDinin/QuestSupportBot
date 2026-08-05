@@ -104,7 +104,7 @@ def handle_donate_command(message):
 
 Спасибо, что делаете квест лучше! 🙌
 """
-    bot.reply_to(message, text, parse_mode='Markdown')
+    bot.reply_to(message, text)
 
 @bot.message_handler(commands=['donate_10', 'donate_25', 'donate_50', 'donate_100'])
 def handle_donate_preset(message):
