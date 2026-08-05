@@ -159,19 +159,21 @@ def handle_donate_stats(message):
 
 # ========== ДОНАТЫ (ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ) ==========
 
+from telebot import types  
+
 def create_donate_invoice(user_id, amount):
     """Создаёт счёт на оплату через Telegram Stars"""
     try:
         amount = int(amount)
-
+        
         prices = [types.LabeledPrice(label=f"{amount} ⭐", amount=amount)]
 
         invoice = bot.send_invoice(
             chat_id=user_id,
             title="☕ Поддержка квеста «Тайны вашего города»",
             description="Спасибо за вашу поддержку! 🌟\n\nВаш донат поможет нам создавать новые маршруты и улучшать приложение.",
-            payload=f"donate_{user_id}_{int(time.time())}",
-            provider_token="",  
+            invoice_payload=f"donate_{user_id}_{int(time.time())}",
+            provider_token="",
             currency="XTR",
             prices=prices,
             start_parameter="donate",
