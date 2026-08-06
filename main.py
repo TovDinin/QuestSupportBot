@@ -166,19 +166,17 @@ def handle_donate_stats(message):
 from telebot import types  
 
 def create_donate_invoice(user_id, amount):
-    """Создаёт счёт на оплату через Telegram Stars"""
     try:
         amount = int(amount)
+        prices = [types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]  # в копейках
         
-        prices = [types.LabeledPrice(label=f"{amount} ⭐", amount=amount)]
-
         invoice = bot.send_invoice(
             chat_id=user_id,
             title="☕ Поддержка квеста «Тайны вашего города»",
-            description="Спасибо за вашу поддержку! 🌟\n\nВаш донат поможет нам создавать новые маршруты и улучшать приложение.",
+            description=f"Спасибо за вашу поддержку! 🌟\n\nСумма: {amount} ₽",
             invoice_payload=f"donate_{user_id}_{int(time.time())}",
-            provider_token="",
-            currency="XTR",
+            provider_token="",  # Здесь нужно будет вставить токен от ЮKassa
+            currency="RUB",
             prices=prices,
             start_parameter="donate",
             need_name=False,
@@ -186,7 +184,7 @@ def create_donate_invoice(user_id, amount):
             need_email=False,
             is_flexible=False
         )
-        logger.info(f"💰 Инвойс на {amount} ⭐ создан для {user_id}")
+        logger.info(f"💰 Инвойс на {amount} ₽ создан для {user_id}")
         return invoice
     except Exception as e:
         logger.error(f"❌ Ошибка создания инвойса: {e}")
