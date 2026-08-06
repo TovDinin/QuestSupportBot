@@ -73,7 +73,6 @@ def handle_start(message):
 
 @bot.message_handler(commands=['donate'])
 def handle_donate_command(message):
-    logger.info(f"🔥 Команда /donate получена от {message.chat.id}")
     text = """☕ **Поддержать проект «Тайны вашего города»**
 
 Спасибо, что хотите нас поддержать! Ваш донат поможет:
@@ -82,17 +81,22 @@ def handle_donate_command(message):
 • Улучшать приложение и AI-помощника
 • Добавлять новые функции и маршруты
 
-🌟 **Суммы доната:**
+💰 **Суммы доната (в рублях):**
 
-/donate_10 — 10 ⭐ (≈ 50 ₽)
-/donate_25 — 25 ⭐ (≈ 125 ₽)
-/donate_50 — 50 ⭐ (≈ 250 ₽)
-/donate_100 — 100 ⭐ (≈ 500 ₽)
+50 ₽ — /donate_50
+100 ₽ — /donate_100
+250 ₽ — /donate_250
+500 ₽ — /donate_500
 /donate_custom — указать свою сумму
 
+💳 **Способы оплаты:**
+• Банковские карты (Visa, MasterCard, МИР)
+• СБП
+• Telegram Stars (для международных пользователей)
+
 💡 **Как это работает:**
-1. Выберите сумму или укажите свою
-2. Оплата через Telegram Stars
+1. Выберите сумму
+2. Оплата через защищённый сервис ЮKassa
 3. Мы получим уведомление и поблагодарим вас!
 
 🔮 **Бонус для донатеров:**
@@ -105,6 +109,7 @@ def handle_donate_command(message):
 Спасибо, что делаете квест лучше! 🙌
 """
     bot.reply_to(message, text)
+    logger.info(f"✅ /donate от {message.chat.id}")
 
 @bot.message_handler(commands=['donate_10', 'donate_25', 'donate_50', 'donate_100'])
 def handle_donate_preset(message):
