@@ -111,16 +111,15 @@ def handle_donate_command(message):
     bot.reply_to(message, text)
     logger.info(f"✅ /donate от {message.chat.id}")
 
-@bot.message_handler(commands=['donate_10', 'donate_25', 'donate_50', 'donate_100'])
+@bot.message_handler(commands=['donate_50', 'donate_100', 'donate_250', 'donate_500'])
 def handle_donate_preset(message):
-    logger.info(f"🔥 Команда {message.text} получена от {message.chat.id}")
     amounts = {
-        '/donate_10': 10,
-        '/donate_25': 25,
         '/donate_50': 50,
-        '/donate_100': 100
+        '/donate_100': 100,
+        '/donate_250': 250,
+        '/donate_500': 500
     }
-    amount = amounts.get(message.text, 10)
+    amount = amounts.get(message.text, 50)
     create_donate_invoice(message.chat.id, amount)
 
 @bot.message_handler(commands=['donate_custom'])
