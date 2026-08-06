@@ -84,10 +84,10 @@ def handle_donate_command(message):
 
 🌟 **Суммы доната:**
 
-/donate_10 — 10 ⭐ (≈ 0.5$)
-/donate_25 — 25 ⭐ (≈ 1.2$)
-/donate_50 — 50 ⭐ (≈ 2.5$)
-/donate_100 — 100 ⭐ (≈ 5$)
+/donate_10 — 10 ⭐ (≈ 50 ₽)
+/donate_25 — 25 ⭐ (≈ 125 ₽)
+/donate_50 — 50 ⭐ (≈ 250 ₽)
+/donate_100 — 100 ⭐ (≈ 500 ₽)
 /donate_custom — указать свою сумму
 
 💡 **Как это работает:**
