@@ -182,7 +182,7 @@ def create_donate_invoice(user_id, amount):
             title="☕ Поддержка квеста «Тайны вашего города»",
             description=f"Спасибо за вашу поддержку! 🌟\n\nСумма: {amount} ₽",
             invoice_payload=f"donate_{user_id}_{int(time.time())}",
-            provider_token="test_gJySghALI12-34fmUXVQKM_mnGq6_z2-gbB13-b8oH6Y,
+            provider_token="test_gJySghALI12-34fmUXVQKM_mnGq6_z2-gbB13-b8oH6Y",
             currency="RUB",
             prices=prices,
             start_parameter="donate",
