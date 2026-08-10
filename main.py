@@ -69,7 +69,7 @@ def handle_start(message):
     bot.reply_to(message, "👋 Привет! Я AI-помощник квеста «Тайны вашего города».\n\nЯ отвечаю на вопросы о:\n• баллах и правилах\n• маршрутах и городах\n• подсказках и загадках\n• донатах\n\nА ещё я умею шутить! Попробуйте спросить что-нибудь сложное! 😄")
     logger.info(f"✅ /start от {message.chat.id}")
 
-# ========== КОМАНДЫ ДОНАТОВ (ДОЛЖНЫ БЫТЬ ВЫШЕ ОСНОВНОГО ОБРАБОТЧИКА) ==========
+# ========== КОМАНДЫ ДОНАТОВ ==========
 
 @bot.message_handler(commands=['donate'])
 def handle_donate_command(message):
@@ -104,16 +104,19 @@ def handle_donate_command(message):
 • Доступ к закрытым новостям о разработке
 • Ваше предложение по новому городу — в приоритете!
 
-💬 Просто напишите об этом в комментарии к донату.
+💬 Если хотите анонимно — просто напишите об этом в комментарии к донату.
 
 📄 **Юридические документы:**
-    • Публичная оферта: https://tovdinin.github.io/offer.html
-    • Политика конфиденциальности: https://tovdinin.github.io/privacy.html
+• Публичная оферта: https://tovdinin.github.io/offer.html
+• Политика конфиденциальности: https://tovdinin.github.io/privacy.html
+
+📩 **Контакты:**
+• Telegram: @Questsupportpaybot
+• Email: quest.supportteam@gmail.com
 
 Спасибо, что делаете квест лучше! 🙌
 """
     bot.reply_to(message, text)
-    logger.info(f"✅ /donate от {message.chat.id}")
 
 @bot.message_handler(commands=['donate_50', 'donate_100', 'donate_250', 'donate_500'])
 def handle_donate_preset(message):
@@ -167,9 +170,8 @@ def handle_donate_stats(message):
 
 # ========== ДОНАТЫ (ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ) ==========
 
-from telebot import types  
-
 def create_donate_invoice(user_id, amount):
+    """Создаёт счёт на оплату через Telegram Stars"""
     try:
         amount = int(amount)
         prices = [types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]  # в копейках
@@ -179,7 +181,7 @@ def create_donate_invoice(user_id, amount):
             title="☕ Поддержка квеста «Тайны вашего города»",
             description=f"Спасибо за вашу поддержку! 🌟\n\nСумма: {amount} ₽",
             invoice_payload=f"donate_{user_id}_{int(time.time())}",
-            provider_token="",  # Здесь нужно будет вставить токен от ЮKassa
+            provider_token="",  # Здесь будет токен от ЮKassa
             currency="RUB",
             prices=prices,
             start_parameter="donate",
@@ -193,6 +195,7 @@ def create_donate_invoice(user_id, amount):
     except Exception as e:
         logger.error(f"❌ Ошибка создания инвойса: {e}")
         return None
+
 @bot.pre_checkout_query_handler(func=lambda query: True)
 def handle_pre_checkout(query):
     try:
@@ -310,7 +313,7 @@ def get_ai_response(text, user_id=None):
     
     # Контакты
     if re.search(r'(контакт|админ|разработчик|телеграм|email|поддержк|help|support|жалоб|отзыв|проблем)', q):
-        return "📩 **Связаться с нами:**\n\n• **Telegram:** @Quest_supportbot (я сам!)\n• **Email:** quest@tobolsk-quest.com\n• **В приложении:** кнопка «Обратная связь»\n\n😄 Если вы пишете жалобу — сначала расскажите анекдот, чтобы мы не грустили!"
+        return "📩 **Связаться с нами:**\n\n• **Telegram:** @Questsupportpaybot\n• **Email:** quest.supportteam@gmail.com\n• **В приложении:** кнопка «Обратная связь»\n\n😄 Если вы пишете жалобу — сначала расскажите анекдот, чтобы мы не грустили!"
     
     # Юмор
     if re.search(r'(шутк|анекдот|смешн|забавн|прикол|рассмеш)', q):
@@ -333,7 +336,7 @@ def get_ai_response(text, user_id=None):
         "😄 Я бы хотел помочь, но ваш вопрос звучит как загадка Сфинкса. Попробуйте спросить про баллы, маршруты или донаты — я в этом силён!"
     ])
 
-# ========== ОСНОВНОЙ ОБРАБОТЧИК (ДОЛЖЕН БЫТЬ САМЫМ ПОСЛЕДНИМ) ==========
+# ========== ОСНОВНОЙ ОБРАБОТЧИК ==========
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
