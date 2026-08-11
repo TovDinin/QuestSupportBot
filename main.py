@@ -171,10 +171,9 @@ def handle_donate_stats(message):
 # ========== ДОНАТЫ (ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ) ==========
 
 def create_donate_invoice(user_id, amount):
-    """Создаёт счёт на оплату через ЮKassa"""
     try:
         amount = int(amount)
-        prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]  # в копейках
+        prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount)]  # <-- БЕЗ УМНОЖЕНИЯ НА 100
         
         invoice = bot.send_invoice(
             chat_id=user_id,
