@@ -178,7 +178,7 @@ def create_donate_invoice(user_id, amount):
             title="☕ Поддержка квеста «Тайны вашего города»",
             description=f"Спасибо за вашу поддержку! 🌟\n\nСумма: {amount} ₽",
             payload=f"donate_{user_id}_{int(time.time())}",
-            provider_token="381764678:TEST:186431",
+            provider_token="390540012:LIVE:100763",
             currency="RUB",
             prices=[telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount)],
             need_email=True,
