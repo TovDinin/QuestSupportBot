@@ -173,18 +173,17 @@ def handle_donate_stats(message):
 def create_donate_invoice(user_id, amount):
     try:
         amount = int(amount)
-        # Создаём ссылку на оплату через ЮKassa
+        # Передаём сумму в рублях (без умножения на 100)
         link = bot.create_invoice_link(
             title="☕ Поддержка квеста «Тайны вашего города»",
             description=f"Спасибо за вашу поддержку! 🌟\n\nСумма: {amount} ₽",
             payload=f"donate_{user_id}_{int(time.time())}",
             provider_token="381764678:TEST:186431",
             currency="RUB",
-            prices=[telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)],  # Telegram требует копейки
+            prices=[telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount)],
             need_email=True,
             send_email_to_provider=True,
         )
-        # Отправляем ссылку пользователю
         bot.send_message(user_id, f"🔗 Ссылка на оплату:\n{link}\n\nПосле оплаты нажмите /confirm, чтобы подтвердить платёж.")
         logger.info(f"💰 Ссылка на оплату {amount} ₽ создана для {user_id}")
         return link
