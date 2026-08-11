@@ -1,5 +1,4 @@
 import telebot
-from telebot import types
 import os
 import time
 import logging
@@ -105,7 +104,7 @@ def handle_donate_command(message):
 • Доступ к закрытым новостям о разработке
 • Ваше предложение по новому городу — в приоритете!
 
-💬 Просто напишите об этом в комментарии к донату.
+💬 Если хотите анонимно — просто напишите об этом в комментарии к донату.
 
 📄 **Юридические документы:**
 • Публичная оферта: https://tovdinin.github.io/offer.html
@@ -172,10 +171,10 @@ def handle_donate_stats(message):
 # ========== ДОНАТЫ (ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ) ==========
 
 def create_donate_invoice(user_id, amount):
-    """Создаёт счёт на оплату через Telegram Stars"""
+    """Создаёт счёт на оплату через ЮKassa"""
     try:
         amount = int(amount)
-        prices = [types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]  # в копейках
+        prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]  # в копейках
         
         invoice = bot.send_invoice(
             chat_id=user_id,
@@ -188,7 +187,8 @@ def create_donate_invoice(user_id, amount):
             start_parameter="donate",
             need_name=False,
             need_phone_number=False,
-            need_email=False,
+            need_email=True,
+            send_email_to_provider=True,
             is_flexible=False
         )
         logger.info(f"💰 Инвойс на {amount} ₽ создан для {user_id}")
@@ -346,11 +346,9 @@ def handle_all_messages(message):
         user_text = message.text or ""
         user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
         
-        # Пропускаем команды (они уже обработаны выше)
         if user_text.startswith('/'):
             return
         
-        # Медиа
         if message.content_type in ['photo', 'voice', 'sticker', 'document', 'video', 'audio']:
             bot.send_message(ADMIN_ID, f"📩 Медиа от {user_name} (ID: {user_id})")
             bot.reply_to(message, "✅ Медиа отправлено администратору.")
