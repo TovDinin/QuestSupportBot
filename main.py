@@ -173,14 +173,15 @@ def handle_donate_stats(message):
 def create_donate_invoice(user_id, amount):
     try:
         amount = int(amount)
-        # Передаём сумму в рублях (без умножения на 100)
+        prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount)]
+              
         link = bot.create_invoice_link(
             title="☕ Поддержка квеста «Тайны вашего города»",
             description=f"Спасибо за вашу поддержку! 🌟\n\nСумма: {amount} ₽",
             payload=f"donate_{user_id}_{int(time.time())}",
             provider_token="390540012:LIVE:100763",
             currency="RUB",
-            prices=[telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount)],
+            prices=prices,
             need_email=True,
             send_email_to_provider=True,
         )
