@@ -175,23 +175,37 @@ def create_donate_invoice(user_id, amount):
         amount = int(amount)
         prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]
         
-        logger.info(f"💰 Создание ссылки для {user_id} на сумму {amount} ₽ (в копейках: {amount * 100})")
-              
-        link = bot.create_invoice_link(
+        provider_data = {
+            "receipt": {
+                "items": [{
+                    "description": "Поддержка проекта",
+                    "quantity": "1.00",
+                    "amount": {
+                        "value": f"{amount}.00",
+                        "currency": "RUB"
+                    },
+                    "vat_code": 1
+                }]
+            }
+        }
+        
+        invoice = bot.send_invoice(
+            chat_id=user_id,
             title="☕ Поддержка квеста «Тайны вашего города»",
             description=f"Спасибо за вашу поддержку! 🌟\n\nСумма: {amount} ₽",
-            payload=f"donate_{user_id}_{int(time.time())}",
+            invoice_payload=f"donate_{user_id}_{int(time.time())}",
             provider_token="390540012:LIVE:100763",
             currency="RUB",
             prices=prices,
+            start_parameter="donate",
             need_email=True,
             send_email_to_provider=True,
+            provider_data=json.dumps(provider_data)
         )
-        bot.send_message(user_id, f"🔗 Ссылка на оплату:\n{link}\n\nПосле оплаты нажмите /confirm, чтобы подтвердить платёж.")
-        logger.info(f"💰 Ссылка на оплату {amount} ₽ создана для {user_id}")
-        return link
+        logger.info(f"💰 Инвойс на {amount} ₽ создан для {user_id}")
+        return invoice
     except Exception as e:
-        logger.error(f"❌ Ошибка создания ссылки на оплату: {e}")
+        logger.error(f"❌ Ошибка создания инвойса: {e}")
         return None
 
 @bot.pre_checkout_query_handler(func=lambda query: True)
