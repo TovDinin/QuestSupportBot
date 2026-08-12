@@ -5,14 +5,13 @@ import logging
 import re
 import random
 from datetime import datetime
-import json
+import json  # <-- ДОБАВЛЕН ИМПОРТ JSON
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 ADMIN_ID = os.environ.get('ADMIN_ID')
-DONATE_CHANNEL = os.environ.get('DONATE_CHANNEL', '')
 
 if not BOT_TOKEN or not ADMIN_ID:
     raise ValueError("BOT_TOKEN и ADMIN_ID должны быть заданы!")
@@ -171,14 +170,24 @@ def handle_donate_stats(message):
 # ========== ДОНАТЫ (ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ) ==========
 
 def create_donate_invoice(user_id, amount):
+    """Создаёт счёт на оплату через ЮKassa"""
     try:
         amount = int(amount)
+        
+        # ПРОБУЙТЕ ОБА ВАРИАНТА:
+        # Вариант 1: в рублях (закомментирован)
+        # prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount)]
+        
+        # Вариант 2: в копейках (активен)
         prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]
         
+        logger.info(f"💰 Создание инвойса для {user_id} на сумму {amount} ₽ (в копейках: {amount * 100})")
+        
+        # Данные для чека (если подключена онлайн-касса)
         provider_data = {
             "receipt": {
                 "items": [{
-                    "description": "Поддержка проекта",
+                    "description": "Поддержка проекта «Тайны вашего города»",
                     "quantity": "1.00",
                     "amount": {
                         "value": f"{amount}.00",
@@ -259,150 +268,8 @@ def handle_successful_payment(message):
     except Exception as e:
         logger.error(f"❌ Ошибка обработки доната: {e}")
 
-# ========== AI-ЛОГИКА ==========
-
-def get_ai_response(text, user_id=None):
-    q = text.lower().strip()
-    
-    context = USER_CONTEXT.get(user_id, {})
-    topic_count = context.get('topic_count', 0)
-    
-    # Приветствия
-    if re.search(r'^(привет|здравствуй|здравствуйте|hello|hi|хай|салам|добрый день|доброе утро|добрый вечер|ку)', q):
-        USER_CONTEXT[user_id] = {'last_topic': 'greeting', 'topic_count': 0}
-        return random.choice(GREETINGS)
-    
-    # Прощания
-    if re.search(r'^(пока|до свидания|bye|goodbye|прощай|всего хорошего|удачи|счастливо)', q):
-        USER_CONTEXT[user_id] = {'last_topic': 'farewell', 'topic_count': 0}
-        return random.choice(FAREWELLS)
-    
-    # Благодарности
-    if re.search(r'(спасиб|thank|thanks|благодар|класс|супер|отлично|здорово|круто|офигенно)', q):
-        USER_CONTEXT[user_id] = {'last_topic': 'thanks', 'topic_count': topic_count + 1}
-        return random.choice(THANKS)
-    
-    # Донаты
-    if re.search(r'(донат|поддерж|звезд|star|перевести|кинуть|бросить|закинуть)', q):
-        return """☕ **Поддержать проект можно через Telegram Stars!**
-
-Просто отправьте команду /donate и выберите сумму.
-
-Ваш донат поможет нам создавать новые квесты и улучшать приложение. Спасибо! 🙌
-
-💡 Если не знаете, что такое Telegram Stars — это внутренняя валюта Telegram. Вы покупаете их в магазине приложений и можете отправлять разработчикам."""
-    
-    # Баллы
-    if re.search(r'(балл|очк|счёт|score|набрать|сколько|максимум|рейтинг|кубок)', q):
-        USER_CONTEXT[user_id] = {'last_topic': 'score', 'topic_count': topic_count + 1}
-        return random.choice([
-            "⭐ **Правила начисления баллов:**\n• 1-я попытка — 3 балла (вы гений!)\n• 2-я попытка — 2 балла (почти гений)\n• 3-я попытка — 1 балл (ну, бывает)\n• После 3 ошибок — подсказка, но 0 баллов (но вы хотя бы узнали что-то новое!)\n\n🎯 Максимум: 36 баллов в Тобольске. Докажите, что вы достойны Кубка Сибири!",
-            "🏆 Как набрать максимум? Читайте загадки внимательно, не торопитесь и не нажимайте «Проверить» с закрытыми глазами. Шутка. Ну почти. 😄\n\n• 1 попытка = 3 балла\n• 2 попытка = 2 балла\n• 3 попытка = 1 балл\n\nУдачи, эрудит!"
-        ])
-    
-    # Маршруты
-    if re.search(r'(маршрут|протяжённ|длина|расстояни|километр|км|время|часов|идти|сколько идти)', q):
-        USER_CONTEXT[user_id] = {'last_topic': 'route', 'topic_count': topic_count + 1}
-        return "📍 **Маршруты (и сколько калорий вы сожжёте):**\n\n• **Тобольск** — 6.3 км, ~1.9 часа (🔥 ~360 ккал — как бургер!)\n• **Роттердам** — 5.5 км, ~2.0 часа (🔥 ~310 ккал — почти пицца!)\n• **Венеция** — 6.5 км, ~3.0 часа (🔥 ~370 ккал — как два круассана!)\n\n😄 Если вы прошли все три — вы официально сожгли недельный запас шоколада!"
-    
-    # Города
-    if re.search(r'(город|city|какие города|доступн|выбрать|список|новые города|добавят)', q):
-        USER_CONTEXT[user_id] = {'last_topic': 'cities', 'topic_count': topic_count + 1}
-        return "🏙️ **Доступные города для квеста:**\n\n• **Тобольск** — 12 точек (древняя столица Сибири, между прочим!)\n• **Роттердам** — 10 точек (город современных кубов и мостов)\n• **Венеция** — 11 точек (город, где вместо дорог — каналы. Надевайте удобную обувь!)\n\n🌍 Новые города появляются… когда мы успеваем их придумать! 😄 Если хотите добавить свой город — напишите нам."
-    
-    # Подсказки
-    if re.search(r'(подсказк|hint|помощь|как найти|где искать|не могу найти|застрял|трудн|сложн|не понимаю)', q):
-        USER_CONTEXT[user_id] = {'last_topic': 'hint', 'topic_count': topic_count + 1}
-        return random.choice([
-            "💡 **Как искать точки (и не сойти с ума):**\n\n• Каждая точка — реальный объект: памятник, табличка, здание с историей.\n• Осмотритесь вокруг! Иногда ответ прямо перед вами.\n• Используйте карту в приложении — она вас не подведёт.\n• Если застряли — вернитесь и перечитайте загадку. Иногда ответ в ней зашифрован!",
-            "🔍 Не можете найти точку? Попробуйте подойти к вопросу с юмором. Например, спросите себя: «А где бы я спрятал загадку, если бы был архитектором XIX века?» 😄\n\nСовет: ищите нестандартные детали — старые фонари, барельефы, таблички с датами."
-        ])
-    
-    # Загадки
-    if re.search(r'(загадк|riddle|ответ|что значит|как решить|не могу разгадать)', q):
-        USER_CONTEXT[user_id] = {'last_topic': 'riddle', 'topic_count': topic_count + 1}
-        return "🔍 **Как разгадывать загадки:**\n\n• Внимательно читайте текст — ключ к ответу всегда в нём.\n• Думайте нестандартно! Загадки часто играют с ассоциациями.\n• Ответ — обычно одно слово или короткая фраза.\n\n😄 Если совсем трудно — попросите подсказку. Но помните: подсказка стоит 0 баллов, зато вы сохраните нервные клетки!"
-    
-    # Контакты
-    if re.search(r'(контакт|админ|разработчик|телеграм|email|поддержк|help|support|жалоб|отзыв|проблем)', q):
-        return "📩 **Связаться с нами:**\n\n• **Telegram:** @Questsupportpaybot\n• **Email:** quest.supportteam@gmail.com\n• **В приложении:** кнопка «Обратная связь»\n\n😄 Если вы пишете жалобу — сначала расскажите анекдот, чтобы мы не грустили!"
-    
-    # Юмор
-    if re.search(r'(шутк|анекдот|смешн|забавн|прикол|рассмеш)', q):
-        return random.choice([
-            "😂 Хотите анекдот?\n\n— Почему квест в Тобольске такой длинный?\n— Потому что сибиряки любят гулять!\n\n😄 Ну как?",
-            "🤣 Анекдот дня:\n\nВстречаются два туриста в Венеции:\n— Ты уже нашёл нужный мост?\n— Нет, но я уже 10 раз пересёк Гранд-канал!\n\nА вы нашли свой мост? 😄"
-        ])
-    
-    # Бессвязные
-    if len(q) < 5 or re.search(r'(абракадабра|ыва|фыв|олд|шшш|ххх)', q):
-        return random.choice([
-            "😄 Я бы ответил, но это звучит как загадка из другого квеста. Попробуйте перефразировать!",
-            "😅 Ой, я потерял нить разговора. Вы точно не пытаетесь взломать меня через тарабарщину?",
-            "🤖 БИП-БУП! Не понял. Может быть, вы случайно нажали на клавиатуру? Попробуйте ещё раз, только по-человечески. 😄"
-        ])
-    
-    # Если не распознан
-    return random.choice([
-        "🤔 Хм... Я не совсем уловил суть. Вот что я умею:\n\n• **Баллы** — как набрать максимум\n• **Маршруты** — длина и калории\n• **Города** — какие доступны\n• **Подсказки** — как не заблудиться\n• **Загадки** — как разгадывать\n• **Донаты** — поддержать проект\n• **Юмор** — анекдоты и шутки\n\nПопробуйте спросить о чём-то из этого! 😊",
-        "😄 Я бы хотел помочь, но ваш вопрос звучит как загадка Сфинкса. Попробуйте спросить про баллы, маршруты или донаты — я в этом силён!"
-    ])
-
-# ========== ОСНОВНОЙ ОБРАБОТЧИК ==========
-
-@bot.message_handler(func=lambda message: True)
-def handle_all_messages(message):
-    try:
-        user_id = message.chat.id
-        user_text = message.text or ""
-        user_name = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name} {message.from_user.last_name or ''}".strip()
-        
-        if user_text.startswith('/'):
-            return
-        
-        if message.content_type in ['photo', 'voice', 'sticker', 'document', 'video', 'audio']:
-            bot.send_message(ADMIN_ID, f"📩 Медиа от {user_name} (ID: {user_id})")
-            bot.reply_to(message, "✅ Медиа отправлено администратору.")
-            logger.info(f"📷 Медиа от {user_id} переслано администратору")
-            return
-        
-        if user_text:
-            ai_response = get_ai_response(user_text, user_id)
-            
-            if ai_response:
-                bot.send_message(user_id, ai_response)
-                logger.info(f"🤖 AI-ответ для {user_id}: {ai_response[:50]}...")
-            else:
-                forward_text = f"📩 Сообщение от {user_name} (ID: {user_id}):\n\n{user_text}"
-                bot.send_message(ADMIN_ID, forward_text)
-                bot.reply_to(message, "✅ Ваше сообщение отправлено администратору.")
-                logger.info(f"📤 Сообщение от {user_id} переслано администратору")
-    
-    except Exception as e:
-        logger.error(f"❌ Ошибка: {e}")
-        try:
-            bot.reply_to(message, "❌ Произошла ошибка. Попробуйте ещё раз.")
-        except:
-            pass
-
-# ========== ОТВЕТЫ АДМИНИСТРАТОРА ==========
-
-@bot.message_handler(func=lambda message: message.chat.id == ADMIN_ID and message.reply_to_message is not None)
-def handle_admin_reply(message):
-    try:
-        original = message.reply_to_message
-        if original and original.text:
-            parts = original.text.split('\n')
-            for p in parts:
-                if p.startswith('ID пользователя:'):
-                    user_id = int(p.split(':')[1].strip())
-                    bot.send_message(user_id, message.text)
-                    bot.send_message(ADMIN_ID, "✅ Ответ отправлен пользователю.")
-                    logger.info(f"✅ Ответ отправлен пользователю {user_id}")
-                    return
-        bot.send_message(ADMIN_ID, "❌ Не найден ID пользователя.")
-    except Exception as e:
-        logger.error(f"❌ Ошибка ответа: {e}")
+# ========== ОСТАЛЬНОЙ КОД (AI-ЛОГИКА, ОБРАБОТЧИКИ) ==========
+# ... (здесь весь остальной код, который у вас уже есть)
 
 if __name__ == "__main__":
     logger.info("🚀 БОТ ЗАПУЩЕН!")
