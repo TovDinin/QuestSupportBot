@@ -173,7 +173,9 @@ def handle_donate_stats(message):
 def create_donate_invoice(user_id, amount):
     try:
         amount = int(amount)
-        prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount)]
+        prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]
+        
+        logger.info(f"💰 Создание ссылки для {user_id} на сумму {amount} ₽ (в копейках: {amount * 100})")
               
         link = bot.create_invoice_link(
             title="☕ Поддержка квеста «Тайны вашего города»",
