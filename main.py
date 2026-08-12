@@ -5,7 +5,9 @@ import logging
 import re
 import random
 from datetime import datetime
-import json  # <-- ДОБАВЛЕН ИМПОРТ JSON
+import json
+import sys
+import traceback
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -174,29 +176,11 @@ def create_donate_invoice(user_id, amount):
     try:
         amount = int(amount)
         
-        # ПРОБУЙТЕ ОБА ВАРИАНТА:
-        # Вариант 1: в рублях (закомментирован)
-        # prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount)]
-        
-        # Вариант 2: в копейках (активен)
+        # Telegram ожидает сумму в копейках для RUB
+        # Проверяем оба варианта: сначала пробуем с копейками
         prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]
         
         logger.info(f"💰 Создание инвойса для {user_id} на сумму {amount} ₽ (в копейках: {amount * 100})")
-        
-        # Данные для чека (если подключена онлайн-касса)
-        provider_data = {
-            "receipt": {
-                "items": [{
-                    "description": "Поддержка проекта «Тайны вашего города»",
-                    "quantity": "1.00",
-                    "amount": {
-                        "value": f"{amount}.00",
-                        "currency": "RUB"
-                    },
-                    "vat_code": 1
-                }]
-            }
-        }
         
         invoice = bot.send_invoice(
             chat_id=user_id,
@@ -207,15 +191,40 @@ def create_donate_invoice(user_id, amount):
             currency="RUB",
             prices=prices,
             start_parameter="donate",
+            need_name=False,
+            need_phone_number=False,
             need_email=True,
             send_email_to_provider=True,
-            provider_data=json.dumps(provider_data)
+            is_flexible=False
         )
         logger.info(f"💰 Инвойс на {amount} ₽ создан для {user_id}")
         return invoice
     except Exception as e:
         logger.error(f"❌ Ошибка создания инвойса: {e}")
-        return None
+        # Пробуем альтернативный вариант (сумма в рублях)
+        try:
+            logger.info(f"🔄 Пробуем альтернативный вариант (сумма в рублях)")
+            prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount)]
+            invoice = bot.send_invoice(
+                chat_id=user_id,
+                title="☕ Поддержка квеста «Тайны вашего города»",
+                description=f"Спасибо за вашу поддержку! 🌟\n\nСумма: {amount} ₽",
+                invoice_payload=f"donate_{user_id}_{int(time.time())}",
+                provider_token="390540012:LIVE:100763",
+                currency="RUB",
+                prices=prices,
+                start_parameter="donate",
+                need_name=False,
+                need_phone_number=False,
+                need_email=True,
+                send_email_to_provider=True,
+                is_flexible=False
+            )
+            logger.info(f"💰 Инвойс на {amount} ₽ создан для {user_id} (альтернативный вариант)")
+            return invoice
+        except Exception as e2:
+            logger.error(f"❌ Ошибка создания инвойса (альтернативный вариант): {e2}")
+            return None
 
 @bot.pre_checkout_query_handler(func=lambda query: True)
 def handle_pre_checkout(query):
@@ -249,27 +258,22 @@ def handle_successful_payment(message):
         save_donations(donations)
         
         thank_messages = [
-            f"🌟 Огромное спасибо за поддержку {amount} ⭐!\n\nВаш донат поможет сделать квест ещё лучше! 🗺️",
-            f"🎉 Спасибо за {amount} ⭐! Вы — настоящий герой! 🚀",
-            f"💫 {amount} ⭐ получены! Вы официально в клубе «Друзей квеста»! 😄",
-            f"☕ Спасибо за угощение на {amount} ⭐! Мы выпьем кофе за вас! 🗺️"
+            f"🌟 Огромное спасибо за поддержку {amount} ₽!\n\nВаш донат поможет сделать квест ещё лучше! 🗺️",
+            f"🎉 Спасибо за {amount} ₽! Вы — настоящий герой! 🚀",
+            f"💫 {amount} ₽ получены! Вы официально в клубе «Друзей квеста»! 😄",
+            f"☕ Спасибо за угощение на {amount} ₽! Мы выпьем кофе за вас! 🗺️"
         ]
         bot.send_message(user_id, random.choice(thank_messages))
-        logger.info(f"💰 Донат {amount} ⭐ от {user_id} ({user_name})")
+        logger.info(f"💰 Донат {amount} ₽ от {user_id} ({user_name})")
         
-        admin_msg = f"💰 НОВЫЙ ДОНАТ!\n\nОт: {user_name} (ID: {user_id})\nСумма: {amount} ⭐\nВсего звёзд: {donations['total_stars']}"
+        admin_msg = f"💰 НОВЫЙ ДОНАТ!\n\nОт: {user_name} (ID: {user_id})\nСумма: {amount} ₽\nВсего собрано: {donations['total_stars']} ₽"
         bot.send_message(ADMIN_ID, admin_msg)
         
-        if DONATE_CHANNEL:
-            try:
-                bot.send_message(DONATE_CHANNEL, f"🌟 {user_name} поддержал проект на {amount} ⭐! Спасибо!")
-            except:
-                pass
     except Exception as e:
         logger.error(f"❌ Ошибка обработки доната: {e}")
 
-# ========== ОСТАЛЬНОЙ КОД (AI-ЛОГИКА, ОБРАБОТЧИКИ) ==========
-# ... (здесь весь остальной код, который у вас уже есть)
+# ========== ОСТАЛЬНОЙ КОД ==========
+# Здесь должен быть ваш остальной код (AI-логика, обработчики сообщений и т.д.)
 
 if __name__ == "__main__":
     logger.info("🚀 БОТ ЗАПУЩЕН!")
