@@ -84,7 +84,6 @@ def handle_donate_command(message):
 
 💰 **Суммы доната (в рублях):**
 
-50 ₽ — /donate_50
 100 ₽ — /donate_100
 250 ₽ — /donate_250
 500 ₽ — /donate_500
