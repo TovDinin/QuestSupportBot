@@ -172,22 +172,17 @@ def handle_donate_stats(message):
 # ========== ДОНАТЫ (ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ) ==========
 
 def create_donate_invoice(user_id, amount):
-    """Создаёт счёт на оплату через ЮKassa"""
     try:
         amount = int(amount)
-        
-        # Telegram ожидает сумму в копейках для RUB
-        # Проверяем оба варианта: сначала пробуем с копейками
+        # Сумма в КОПЕЙКАХ (amount * 100)
         prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]
-        
-        logger.info(f"💰 Создание инвойса для {user_id} на сумму {amount} ₽ (в копейках: {amount * 100})")
         
         invoice = bot.send_invoice(
             chat_id=user_id,
             title="☕ Поддержка квеста «Тайны вашего города»",
             description=f"Спасибо за вашу поддержку! 🌟\n\nСумма: {amount} ₽",
             invoice_payload=f"donate_{user_id}_{int(time.time())}",
-            provider_token="390540012:LIVE:100763",
+            provider_token="390540012:LIVE:100763",  # Ваш токен от @BotFather
             currency="RUB",
             prices=prices,
             start_parameter="donate",
@@ -197,34 +192,11 @@ def create_donate_invoice(user_id, amount):
             send_email_to_provider=True,
             is_flexible=False
         )
-        logger.info(f"💰 Инвойс на {amount} ₽ создан для {user_id}")
+        logger.info(f"💰 Инвойс на {amount} ₽ (в копейках: {amount * 100}) создан для {user_id}")
         return invoice
     except Exception as e:
         logger.error(f"❌ Ошибка создания инвойса: {e}")
-        # Пробуем альтернативный вариант (сумма в рублях)
-        try:
-            logger.info(f"🔄 Пробуем альтернативный вариант (сумма в рублях)")
-            prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount)]
-            invoice = bot.send_invoice(
-                chat_id=user_id,
-                title="☕ Поддержка квеста «Тайны вашего города»",
-                description=f"Спасибо за вашу поддержку! 🌟\n\nСумма: {amount} ₽",
-                invoice_payload=f"donate_{user_id}_{int(time.time())}",
-                provider_token="390540012:LIVE:100763",
-                currency="RUB",
-                prices=prices,
-                start_parameter="donate",
-                need_name=False,
-                need_phone_number=False,
-                need_email=True,
-                send_email_to_provider=True,
-                is_flexible=False
-            )
-            logger.info(f"💰 Инвойс на {amount} ₽ создан для {user_id} (альтернативный вариант)")
-            return invoice
-        except Exception as e2:
-            logger.error(f"❌ Ошибка создания инвойса (альтернативный вариант): {e2}")
-            return None
+        return None
 
 @bot.pre_checkout_query_handler(func=lambda query: True)
 def handle_pre_checkout(query):
