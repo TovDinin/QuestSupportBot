@@ -174,8 +174,26 @@ def handle_donate_stats(message):
 def create_donate_invoice(user_id, amount):
     try:
         amount = int(amount)
-        # Сумма в КОПЕЙКАХ (amount * 100)
+        
+        # Сумма в КОПЕЙКАХ
         prices = [telebot.types.LabeledPrice(label=f"{amount} ₽", amount=amount * 100)]
+        
+        # Данные для чека (если включена онлайн-касса)
+        provider_data = {
+            "receipt": {
+                "items": [{
+                    "description": "Поддержка проекта «Тайны вашего города»",
+                    "quantity": "1.00",
+                    "amount": {
+                        "value": f"{amount}.00",
+                        "currency": "RUB"
+                    },
+                    "vat_code": 1
+                }]
+            }
+        }
+        
+        logger.info(f"💰 Создание инвойса для {user_id} на сумму {amount} ₽ (в копейках: {amount * 100})")
         
         invoice = bot.send_invoice(
             chat_id=user_id,
@@ -190,9 +208,10 @@ def create_donate_invoice(user_id, amount):
             need_phone_number=False,
             need_email=True,
             send_email_to_provider=True,
+            provider_data=json.dumps(provider_data),
             is_flexible=False
         )
-        logger.info(f"💰 Инвойс на {amount} ₽ (в копейках: {amount * 100}) создан для {user_id}")
+        logger.info(f"💰 Инвойс на {amount} ₽ создан для {user_id}")
         return invoice
     except Exception as e:
         logger.error(f"❌ Ошибка создания инвойса: {e}")
